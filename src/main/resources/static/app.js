@@ -23,6 +23,7 @@ const TEXTS = {
 
     hereButton: "אני כאן",
     hereNote: "אין צורך לדבר עם אף אחד. רק להיות.",
+    tooMany: "מהחיבור הזה כבר דולקים הרבה חלונות. אפשר לנסות שוב בעוד כמה דקות.",
 
     groupsQuestion: "רוצה לעשות משהו קטן ביחד עם השכנים? במה להתחיל?",
     justBeing: "גם רק להיות כאן נחשב.",
@@ -44,17 +45,19 @@ const TEXTS = {
 // The draft list of small tasks (questions 5-8). Up to 6 in each group.
 const GROUPS = [
     { name: "גוף", hint: "מים, מקלחת, מתיחה",
-        tasks: ["לשתות כוס מים", "להתקלח", "להתמתח שתי דקות", "לאכול משהו קטן", "להחליף בגדים", "לנשום עמוק חמש פעמים"] },
+      tasks: ["לשתות כוס מים", "להתקלח", "להתמתח שתי דקות", "לאכול משהו קטן", "להחליף בגדים", "לנשום עמוק חמש פעמים"] },
     { name: "בית", hint: "חלון, מיטה, כלים",
-        tasks: ["לפתוח תריס", "לפתוח חלון", "לסדר את המיטה", "לשטוף כמה כלים", "להוציא את הזבל", "להכין כוס תה"] },
+      tasks: ["לפתוח תריס", "לפתוח חלון", "לסדר את המיטה", "לשטוף כמה כלים", "להוציא את הזבל", "להכין כוס תה"] },
     { name: "חוץ", hint: "מרפסת, פינה, מכולת",
-        tasks: ["לצאת למרפסת", "לעמוד בכניסה לבניין", "לבדוק את תיבת הדואר", "ללכת עד הפינה", "לקנות דבר אחד במכולת", "לשבת על ספסל"] },
+      tasks: ["לצאת למרפסת", "לעמוד בכניסה לבניין", "לבדוק את תיבת הדואר", "ללכת עד הפינה", "לקנות דבר אחד במכולת", "לשבת על ספסל"] },
     { name: "קשר", hint: "הודעה, שיחה",
-        tasks: ["לענות להודעה אחת", "לשלוח \"מה נשמע\" למישהו", "להתקשר לבן משפחה", "לכתוב לחבר ותיק", "לשלוח תמונה למישהו"] },
+      tasks: ["לענות להודעה אחת", "לשלוח \"מה נשמע\" למישהו", "להתקשר לבן משפחה", "לכתוב לחבר ותיק", "לשלוח תמונה למישהו"] },
 ];
 
-const WINDOWS = 30; // the same as SEATS on the server
+const WINDOWS = 30;        // the same as SEATS on the server
 const GLOW_MS = 2500;
+const PING_MS = 25_000;    // the server lets go of a page silent for 90 seconds
+const RECONNECT_MS = 3000;
 
 const $ = (id) => document.getElementById(id);
 
@@ -70,6 +73,8 @@ const state = {
 };
 
 let socket = null;
+let pingTimer = null;
+let reconnectTimer = null;
 
 // --- Building the screen once -------------------------------------------------------------------
 
@@ -131,11 +136,11 @@ function render() {
         const others = Math.max(state.here - 1, 0);
         $("count").textContent = others === 0 ? TEXTS.firstWindow
             : others === 1 ? TEXTS.oneWithYou
-                : TEXTS.manyWithYou(others);
+            : TEXTS.manyWithYou(others);
     } else {
         $("count").textContent = state.here === 0 ? TEXTS.nobodyYet
             : state.here === 1 ? TEXTS.oneHere
-                : TEXTS.manyHere(state.here);
+            : TEXTS.manyHere(state.here);
     }
 
     // One panel at a time
@@ -153,7 +158,7 @@ function render() {
         $("doing-line").textContent = TEXTS.doing(state.task);
         $("others-line").textContent = othersBusy === 0 ? TEXTS.nobodyElseBusy
             : othersBusy === 1 ? TEXTS.oneElseBusy
-                : TEXTS.manyElseBusy(othersBusy);
+            : TEXTS.manyElseBusy(othersBusy);
     }
 }
 
@@ -195,10 +200,16 @@ function send(word) {
 }
 
 function connect() {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     socket = new WebSocket(`${protocol}://${location.host}/ws/presence`);
 
     socket.onopen = () => {
+        // A small "still here" every 25 seconds. Without it the server lets the page go after 90 seconds
+        // of silence, so a phone that slept without saying goodbye doesn't leave its window lit.
+        clearInterval(pingTimer);
+        pingTimer = setInterval(() => send("ping"), PING_MS);
         // After a dropped connection, the reader is still here (and maybe still doing something).
         if (state.step !== "start") {
             send("here");
@@ -220,17 +231,32 @@ function connect() {
             render();
         } else if (message.type === "done") {
             glow(message.seat);
+        } else if (message.type === "tooMany") {
+            state.step = "start";
+            render();
+            $("count").textContent = TEXTS.tooMany;
         }
     };
 
     // The phone slept or the network changed: try again quietly.
     // The window may change after reconnecting; the server gives a new one.
     socket.onclose = () => {
+        clearInterval(pingTimer);
         state.mySeat = -1;
         $("count").textContent = TEXTS.reconnecting;
-        setTimeout(connect, 3000);
+        if (!reconnectTimer) {
+            reconnectTimer = setTimeout(connect, RECONNECT_MS);
+        }
     };
 }
+
+// Back to the app after the phone slept: reconnect right away instead of waiting.
+document.addEventListener("visibilitychange", () => {
+    const closed = !socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING;
+    if (document.visibilityState === "visible" && closed) {
+        connect();
+    }
+});
 
 // --- Buttons -------------------------------------------------------------------------------------
 

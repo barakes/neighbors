@@ -1,11 +1,14 @@
 package io.github.barakes.neighbors.limits;
 
+import java.net.InetSocketAddress;
 import java.util.regex.Pattern;
 
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.WebSocketSession;
 
 /**
  * The address the limits count by. Taken from one header that the proxy in front of the server writes
@@ -24,13 +27,28 @@ public class ClientAddress {
         this.header = header;
     }
 
+    /** For HTTP requests. */
     public String of(HttpServletRequest request) {
-        if (!header.isBlank()) {
-            String value = request.getHeader(header);
-            if (value != null && LOOKS_LIKE_ADDRESS.matcher(value.trim()).matches()) {
-                return value.trim();
-            }
+        String fromHeader = fromHeader(request.getHeader(header.isBlank() ? "-" : header));
+        return fromHeader != null ? fromHeader : request.getRemoteAddr();
+    }
+
+    /** For WebSocket connections: the headers of the request that opened the connection. */
+    public String of(WebSocketSession session) {
+        HttpHeaders headers = session.getHandshakeHeaders();
+        String fromHeader = headers == null || header.isBlank() ? null : fromHeader(headers.getFirst(header));
+        if (fromHeader != null) {
+            return fromHeader;
         }
-        return request.getRemoteAddr();
+        InetSocketAddress remote = session.getRemoteAddress();
+        return remote == null || remote.getAddress() == null ? "unknown" : remote.getAddress().getHostAddress();
+    }
+
+    private String fromHeader(String value) {
+        if (header.isBlank() || value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return LOOKS_LIKE_ADDRESS.matcher(trimmed).matches() ? trimmed : null;
     }
 }

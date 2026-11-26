@@ -1,7 +1,6 @@
 package io.github.barakes.neighbors.presence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -20,9 +19,12 @@ import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+
+import io.github.barakes.neighbors.limits.ClientAddress;
 
 class PresenceHandlerTest {
 
@@ -51,18 +53,27 @@ class PresenceHandlerTest {
     }
 
     private final TestClock clock = new TestClock();
-    private final PresenceHandler handler = new PresenceHandler(clock);
+    private final PresenceHandler handler = new PresenceHandler(clock, new ClientAddress("CF-Connecting-IP"));
+    private int nextAddress = 1;
 
-    private static WebSocketSession session(String id) {
+    /** Each page gets its own address unless the test says otherwise. */
+    private WebSocketSession session(String id, String address) {
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn(id);
         when(session.isOpen()).thenReturn(true);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("CF-Connecting-IP", address);
+        when(session.getHandshakeHeaders()).thenReturn(headers);
         return session;
     }
 
     /** Opens the page: connects without pressing anything. */
     private WebSocketSession open(String id) throws Exception {
-        WebSocketSession session = session(id);
+        return open(id, "10.0.0." + nextAddress++);
+    }
+
+    private WebSocketSession open(String id, String address) throws Exception {
+        WebSocketSession session = session(id, address);
         handler.afterConnectionEstablished(session);
         return session;
     }
@@ -73,6 +84,10 @@ class PresenceHandlerTest {
 
     private static TextMessage presence(int here, int busy, List<Integer> seats) {
         return new TextMessage(PresenceMessages.presence(here, busy, seats));
+    }
+
+    private TextMessage glow(String id) {
+        return new TextMessage(PresenceMessages.done(handler.seatOf(id)));
     }
 
     // --- Being here ---
@@ -134,7 +149,6 @@ class PresenceHandlerTest {
         say(person, "here");
         handler.afterConnectionClosed(person, CloseStatus.NORMAL);
         assertEquals(0, handler.count());
-        // The empty building: once when the viewer opened the page, once now.
         verify(viewer, times(2)).sendMessage(presence(0, 0, List.of()));
     }
 
@@ -160,6 +174,17 @@ class PresenceHandlerTest {
     }
 
     @Test
+    void pickingAnotherTaskWhileBusyDisturbsNobody() throws Exception {
+        WebSocketSession viewer = open("viewer");
+        WebSocketSession person = open("person");
+        say(person, "here");
+        say(person, "start");
+        say(person, "start");
+        say(person, "start");
+        verify(viewer, times(1)).sendMessage(presence(1, 1, List.of(handler.seatOf("person"))));
+    }
+
+    @Test
     void startingBeforeBeingHereIsIgnored() throws Exception {
         WebSocketSession person = open("person");
         say(person, "start");
@@ -173,9 +198,8 @@ class PresenceHandlerTest {
         say(person, "here");
         say(person, "start");
         say(person, "done");
-        int seat = handler.seatOf("person");
-        verify(viewer).sendMessage(new TextMessage(PresenceMessages.done(seat)));
-        verify(person).sendMessage(new TextMessage(PresenceMessages.done(seat)));
+        verify(viewer).sendMessage(glow("person"));
+        verify(person).sendMessage(glow("person"));
         assertEquals(0, handler.busyCount());
     }
 
@@ -185,7 +209,26 @@ class PresenceHandlerTest {
         WebSocketSession person = open("person");
         say(person, "here");
         say(person, "done");
-        verify(viewer, never()).sendMessage(new TextMessage(PresenceMessages.done(handler.seatOf("person"))));
+        verify(viewer, never()).sendMessage(glow("person"));
+    }
+
+    @Test
+    void aWindowGlowsAtMostOnceAMinute() throws Exception {
+        WebSocketSession viewer = open("viewer");
+        WebSocketSession person = open("person");
+        say(person, "here");
+        for (int i = 0; i < 5; i++) {
+            say(person, "start");
+            say(person, "done");
+        }
+        verify(viewer, times(1)).sendMessage(glow("person"));
+        // The task still counts as done: only the glow waits.
+        assertEquals(0, handler.busyCount());
+
+        clock.advance(Duration.ofMinutes(1));
+        say(person, "start");
+        say(person, "done");
+        verify(viewer, times(2)).sendMessage(glow("person"));
     }
 
     @Test
@@ -195,13 +238,14 @@ class PresenceHandlerTest {
         say(person, "start");
 
         clock.advance(Duration.ofMinutes(29));
+        say(person, "ping");
         handler.expireTasks();
         assertEquals(1, handler.busyCount());
 
         clock.advance(Duration.ofMinutes(1));
+        say(person, "ping");
         handler.expireTasks();
         assertEquals(0, handler.busyCount());
-        // Still here: only the task is gone.
         assertEquals(1, handler.count());
     }
 
@@ -213,7 +257,69 @@ class PresenceHandlerTest {
         clock.advance(Duration.ofMinutes(31));
         handler.expireTasks();
         say(person, "done");
-        verify(person, never()).sendMessage(new TextMessage(PresenceMessages.done(handler.seatOf("person"))));
+        verify(person, never()).sendMessage(glow("person"));
+    }
+
+    // --- Pages that fall silent ---
+
+    @Test
+    void aSilentPageIsLetGoAfter90Seconds() throws Exception {
+        WebSocketSession viewer = open("viewer");
+        WebSocketSession person = open("person");
+        say(person, "here");
+
+        clock.advance(Duration.ofSeconds(60));
+        say(viewer, "ping");
+        handler.dropSilentPages();
+        assertEquals(1, handler.count());
+
+        clock.advance(Duration.ofSeconds(30));
+        say(viewer, "ping");
+        handler.dropSilentPages();
+        assertEquals(0, handler.count());
+        verify(person).close(CloseStatus.SESSION_NOT_RELIABLE);
+        // The one still here hears that the window went dark.
+        verify(viewer, times(2)).sendMessage(presence(0, 0, List.of()));
+    }
+
+    @Test
+    void pingingKeepsAPageAlive() throws Exception {
+        WebSocketSession person = open("person");
+        say(person, "here");
+        for (int i = 0; i < 10; i++) {
+            clock.advance(Duration.ofSeconds(25));
+            say(person, "ping");
+            handler.dropSilentPages();
+        }
+        assertEquals(1, handler.count());
+        verify(person, never()).close(any());
+    }
+
+    // --- Limits per address ---
+
+    @Test
+    void atMostTenWindowsFromOneAddress() throws Exception {
+        for (int i = 0; i < PresenceHandler.MAX_WINDOWS_PER_ADDRESS; i++) {
+            say(open("p" + i, "203.0.113.7"), "here");
+        }
+        WebSocketSession eleventh = open("eleventh", "203.0.113.7");
+        say(eleventh, "here");
+        verify(eleventh).sendMessage(new TextMessage(PresenceMessages.tooMany()));
+        assertEquals(PresenceHandler.MAX_WINDOWS_PER_ADDRESS, handler.count());
+
+        // Someone from another address is not affected.
+        say(open("other", "198.51.100.1"), "here");
+        assertEquals(PresenceHandler.MAX_WINDOWS_PER_ADDRESS + 1, handler.count());
+    }
+
+    @Test
+    void atMostTwentyPagesFromOneAddress() throws Exception {
+        for (int i = 0; i < PresenceHandler.MAX_PAGES_PER_ADDRESS; i++) {
+            open("p" + i, "203.0.113.7");
+        }
+        WebSocketSession extra = open("extra", "203.0.113.7");
+        verify(extra).close(CloseStatus.POLICY_VIOLATION);
+        assertEquals(PresenceHandler.MAX_PAGES_PER_ADDRESS, handler.pageCount());
     }
 
     @Test
@@ -221,7 +327,6 @@ class PresenceHandlerTest {
         WebSocketSession person = open("person");
         say(person, "something else");
         assertEquals(0, handler.count());
-        assertNotEquals(0, PresenceHandler.SEATS);
     }
 
     // --- Message formats ---
@@ -232,5 +337,6 @@ class PresenceHandlerTest {
                 PresenceMessages.presence(2, 1, List.of(17, 3)));
         assertEquals("{\"type\":\"you\",\"seat\":17}", PresenceMessages.you(17));
         assertEquals("{\"type\":\"done\",\"seat\":17}", PresenceMessages.done(17));
+        assertEquals("{\"type\":\"tooMany\"}", PresenceMessages.tooMany());
     }
 }

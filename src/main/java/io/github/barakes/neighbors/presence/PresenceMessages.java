@@ -30,4 +30,9 @@ public final class PresenceMessages {
     public static String done(int seat) {
         return "{\"type\":\"done\",\"seat\":" + seat + "}";
     }
+
+    /** To one person only: too many windows are already lit from their address; try again later. */
+    public static String tooMany() {
+        return "{\"type\":\"tooMany\"}";
+    }
 }

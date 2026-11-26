@@ -2,7 +2,7 @@
 // Most important: the help page opens even with no internet at all.
 //
 // Change VERSION whenever any of the files below change, so phones replace their old copy.
-const VERSION = "small-steps-v2";
+const VERSION = "small-steps-v3";
 
 const FILES = [
     "/",
