@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0F1524">
+    <title>שכנים – הסולם שלי</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="ladder.css">
+</head>
+<body>
+<!-- The structure only: every word is set by ladder.js, from one list at its top. -->
+<main class="screen ladder-screen">
+
+    <h1 id="title"></h1>
+    <p class="message" id="message" role="status" aria-live="polite"></p>
+
+    <!-- Signing in or up: only a username and a password -->
+    <section class="panel" id="auth-panel" hidden>
+        <p id="why-account"></p>
+        <form class="form" id="auth-form" novalidate>
+            <label for="username" id="username-label"></label>
+            <input class="field" id="username" name="username" autocomplete="username" maxlength="30" required>
+            <label for="password" id="password-label"></label>
+            <input class="field" id="password" name="password" type="password" maxlength="64" required>
+            <button type="submit" class="here-button smaller" id="auth-submit"></button>
+        </form>
+        <button type="button" class="back-button switch" id="auth-switch"></button>
+    </section>
+
+    <!-- The ladder -->
+    <section class="panel" id="ladder-panel" hidden>
+        <p id="ladder-intro"></p>
+        <ol class="steps" id="steps"></ol>
+
+        <form class="form" id="add-form" hidden>
+            <label for="new-step" id="new-step-label"></label>
+            <div class="row">
+                <input class="field" id="new-step" maxlength="80">
+                <button type="submit" class="small-button primary" id="add-button"></button>
+            </div>
+        </form>
+
+        <button type="button" class="secondary-button" id="edit-toggle"></button>
+
+        <div class="account">
+            <p id="account-name"></p>
+            <button type="button" class="back-button" id="logout"></button>
+            <button type="button" class="back-button danger" id="delete-start"></button>
+            <div class="panel" id="delete-confirm" hidden>
+                <p id="delete-warning"></p>
+                <div class="row">
+                    <button type="button" class="small-button primary" id="delete-yes"></button>
+                    <button type="button" class="small-button" id="delete-no"></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <a class="back" href="/">חזרה לבניין</a>
+    <a class="help" href="help.html">צריך לדבר עם מישהו עכשיו?</a>
+
+</main>
+<script src="ladder.js"></script>
+</body>
+</html>

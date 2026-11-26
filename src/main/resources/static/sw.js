@@ -2,7 +2,7 @@
 // Most important: the help page opens even with no internet at all.
 //
 // Change VERSION whenever any of the files below change, so phones replace their old copy.
-const VERSION = "small-steps-v1";
+const VERSION = "small-steps-v2";
 
 const FILES = [
     "/",
@@ -11,6 +11,9 @@ const FILES = [
     "/app.js",
     "/help.html",
     "/help.css",
+    "/ladder.html",
+    "/ladder.css",
+    "/ladder.js",
     "/manifest.json",
     "/icons/icon-192.png",
     "/icons/icon-512.png",
@@ -37,7 +40,10 @@ self.addEventListener("activate", (event) => {
 // No internet (or the server is asleep and doesn't answer): use the saved copy.
 self.addEventListener("fetch", (event) => {
     const request = event.request;
-    if (request.method !== "GET" || new URL(request.url).origin !== location.origin) {
+    const url = new URL(request.url);
+    // Only the app's own pages and files. Never the API: someone's ladder must not be kept
+    // in a copy that another person on the same phone could open.
+    if (request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) {
         return;
     }
     event.respondWith(

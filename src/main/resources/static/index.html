@@ -1,77 +1,78 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0F1524">
-  <title>שכנים</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0F1524">
+    <title>שכנים</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <!-- The structure only: every word on this screen is set by app.js, from one list at its top. -->
 <main class="screen">
 
-  <header>
-    <h1 class="greeting" id="greeting"></h1>
-    <p class="count" id="count" aria-live="polite"></p>
-  </header>
+    <header>
+        <h1 class="greeting" id="greeting"></h1>
+        <p class="count" id="count" aria-live="polite"></p>
+    </header>
 
-  <div class="street">
-    <!-- The windows are added by app.js. Decorative: the count line says the same in words. -->
-    <div class="building" id="building" aria-hidden="true">
-      <div class="door"></div>
+    <div class="street">
+        <!-- The windows are added by app.js. Decorative: the count line says the same in words. -->
+        <div class="building" id="building" aria-hidden="true">
+            <div class="door"></div>
+        </div>
     </div>
-  </div>
 
-  <!-- 1. Before "I'm here" -->
-  <section class="panel" id="start-panel">
-    <button type="button" class="here-button" id="here-button"></button>
-    <p class="note" id="here-note"></p>
-  </section>
+    <!-- 1. Before "I'm here" -->
+    <section class="panel" id="start-panel">
+        <button type="button" class="here-button" id="here-button"></button>
+        <p class="note" id="here-note"></p>
+    </section>
 
-  <!-- 2. Which group to start with -->
-  <section class="panel" id="groups-panel" hidden>
-    <p class="question" id="groups-question"></p>
-    <div class="choices" id="groups"></div>
-    <p class="note" id="just-being"></p>
-  </section>
+    <!-- 2. Which group to start with -->
+    <section class="panel" id="groups-panel" hidden>
+        <p class="question" id="groups-question"></p>
+        <div class="choices" id="groups"></div>
+        <p class="note" id="just-being"></p>
+    </section>
 
-  <!-- 3. Which small task, inside the group -->
-  <section class="panel" id="tasks-panel" hidden>
-    <div class="row">
-      <p class="question" id="group-title"></p>
-      <button type="button" class="back-button" id="tasks-back"></button>
-    </div>
-    <div class="choices" id="tasks"></div>
-  </section>
+    <!-- 3. Which small task, inside the group -->
+    <section class="panel" id="tasks-panel" hidden>
+        <div class="row">
+            <p class="question" id="group-title"></p>
+            <button type="button" class="back-button" id="tasks-back"></button>
+        </div>
+        <div class="choices" id="tasks"></div>
+    </section>
 
-  <!-- 4. Doing it -->
-  <section class="panel" id="doing-panel" hidden>
-    <p class="doing-line" id="doing-line"></p>
-    <p class="note" id="others-line" aria-live="polite"></p>
-    <button type="button" class="here-button smaller" id="done-button"></button>
-    <button type="button" class="back-button" id="change-task"></button>
-  </section>
+    <!-- 4. Doing it -->
+    <section class="panel" id="doing-panel" hidden>
+        <p class="doing-line" id="doing-line"></p>
+        <p class="note" id="others-line" aria-live="polite"></p>
+        <button type="button" class="here-button smaller" id="done-button"></button>
+        <button type="button" class="back-button" id="change-task"></button>
+    </section>
 
-  <!-- 5. Done -->
-  <section class="panel" id="done-panel" hidden>
-    <p class="done-title" id="done-title"></p>
-    <p class="note" id="done-note"></p>
-    <button type="button" class="secondary-button" id="again-button"></button>
-  </section>
+    <!-- 5. Done -->
+    <section class="panel" id="done-panel" hidden>
+        <p class="done-title" id="done-title"></p>
+        <p class="note" id="done-note"></p>
+        <button type="button" class="secondary-button" id="again-button"></button>
+    </section>
 
-  <a class="help" href="help.html">צריך לדבר עם מישהו עכשיו?</a>
+    <a class="help" href="ladder.html">הסולם שלי</a>
+    <a class="help" href="help.html">צריך לדבר עם מישהו עכשיו?</a>
 
 </main>
 <script src="app.js"></script>
 <script>
-  // Keep a copy of the app on the phone (see sw.js), so the help page opens even offline.
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js");
-  }
+    // Keep a copy of the app on the phone (see sw.js), so the help page opens even offline.
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js");
+    }
 </script>
 </body>
 </html>
