@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שכנים</title>
+<!-- Temporary page: only checks that presence works. The real design comes later. -->
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+         justify-content: center; gap: 12px; background: #0F1524; color: #F3EEE3;
+         font-family: system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+  h1 { margin: 0; font-size: 28px; font-weight: 600; }
+  p { margin: 0; font-size: 18px; color: #B7BFD3; }
+</style>
+</head>
+<body>
+  <h1>שכנים</h1>
+  <p id="count">מתחבר...</p>
+<script>
+  const countLine = document.getElementById("count");
+
+  function connect() {
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(protocol + "://" + location.host + "/ws/presence");
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "presence") {
+        countLine.textContent = "עכשיו כאן: " + message.here;
+      }
+    };
+
+    // If the connection drops (the phone slept, the network changed), try again quietly.
+    socket.onclose = () => {
+      countLine.textContent = "מתחבר מחדש...";
+      setTimeout(connect, 3000);
+    };
+  }
+
+  connect();
+</script>
+</body>
+</html>
