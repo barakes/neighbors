@@ -39,7 +39,13 @@ const TEXTS = {
 
     doneTitle: "גם זה נחשב.",
     doneNote: "החלון שלך זוהר עכשיו אצל כל השכנים.",
+    doneNoteLadder: "החלון שלך זוהר עכשיו אצל כל השכנים, והצעד סומן בסולם שלך.",
     again: "עוד משהו קטן?",
+
+    // A fifth group, only for people with a ladder: their own steps as tasks.
+    ladderGroup: "הסולם שלי",
+    ladderHint: "הצעדים שלך",
+    reachedMark: (text) => `✓ ${text}`,
 };
 
 // The draft list of small tasks (questions 5-8). Up to 6 in each group.
@@ -54,6 +60,7 @@ const GROUPS = [
       tasks: ["לענות להודעה אחת", "לשלוח \"מה נשמע\" למישהו", "להתקשר לבן משפחה", "לכתוב לחבר ותיק", "לשלוח תמונה למישהו"] },
 ];
 
+const TOKEN_KEY = "neighbors.token"; // the same as in ladder.js
 const WINDOWS = 30;        // the same as SEATS on the server
 const GLOW_MS = 2500;
 const PING_MS = 25_000;    // the server lets go of a page silent for 90 seconds
@@ -70,6 +77,8 @@ const state = {
     busy: 0,      // how many are doing a task right now, the reader included
     seats: [],    // the lit windows
     mySeat: -1,   // the reader's window, once the server gave one
+    ladder: [],   // the reader's own ladder steps, if they're signed in (stays on the phone)
+    ladderStep: null, // the ladder step being done now, if the task came from the ladder
 };
 
 let socket = null;
@@ -98,7 +107,7 @@ $("done-title").textContent = TEXTS.doneTitle;
 $("done-note").textContent = TEXTS.doneNote;
 $("again-button").textContent = TEXTS.again;
 
-GROUPS.forEach((group) => {
+function groupButton(group, onClick) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "choice group";
@@ -109,12 +118,23 @@ GROUPS.forEach((group) => {
     hint.className = "choice-hint";
     hint.textContent = group.hint;
     button.append(name, hint);
-    button.addEventListener("click", () => {
+    button.addEventListener("click", onClick);
+    return button;
+}
+
+GROUPS.forEach((group) => {
+    $("groups").append(groupButton(group, () => {
         state.group = group;
         state.step = "tasks";
         render();
-    });
-    $("groups").append(button);
+    }));
+});
+
+// The ladder group is added only when there is a ladder to show.
+const ladderGroupButton = groupButton({ name: TEXTS.ladderGroup, hint: TEXTS.ladderHint }, () => {
+    state.group = { name: TEXTS.ladderGroup, ladder: true };
+    state.step = "tasks";
+    render();
 });
 
 // --- Showing the state ---------------------------------------------------------------------------
@@ -150,8 +170,18 @@ function render() {
     $("doing-panel").hidden = state.step !== "doing";
     $("done-panel").hidden = state.step !== "done";
 
+    if (state.step === "groups") {
+        if (state.ladder.length > 0) {
+            $("groups").append(ladderGroupButton);
+        } else {
+            ladderGroupButton.remove();
+        }
+    }
     if (state.step === "tasks") {
         renderTasks();
+    }
+    if (state.step === "done") {
+        $("done-note").textContent = state.ladderStep ? TEXTS.doneNoteLadder : TEXTS.doneNote;
     }
     if (state.step === "doing") {
         const othersBusy = Math.max(state.busy - 1, 0);
@@ -166,19 +196,68 @@ function renderTasks() {
     $("group-title").textContent = TEXTS.groupTitle(state.group.name);
     const list = $("tasks");
     list.replaceChildren();
-    state.group.tasks.forEach((task) => {
+    // From the ladder: the person's own steps, bottom of the ladder first. Otherwise the group's tasks.
+    const choices = state.group.ladder
+        ? state.ladder.map((step) => ({ label: step.reached ? TEXTS.reachedMark(step.text) : step.text, task: step.text, step }))
+        : state.group.tasks.map((task) => ({ label: task, task, step: null }));
+    choices.forEach((choice) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "choice";
-        button.textContent = task;
+        button.textContent = choice.label;
         button.addEventListener("click", () => {
-            state.task = task;
+            state.task = choice.task;
+            state.ladderStep = choice.step;
             state.step = "doing";
+            // The server only hears "start": the step itself never leaves the phone this way.
             send("start");
             render();
         });
         list.append(button);
     });
+}
+
+// --- The ladder, for people who have one ----------------------------------------------------------
+
+function loadToken() {
+    try {
+        return localStorage.getItem(TOKEN_KEY);
+    } catch {
+        return null;
+    }
+}
+
+async function loadLadder() {
+    const token = loadToken();
+    if (!token) {
+        state.ladder = [];
+        return;
+    }
+    try {
+        const response = await fetch("/api/ladder", { headers: { Authorization: `Bearer ${token}` } });
+        state.ladder = response.ok ? await response.json() : [];
+    } catch {
+        state.ladder = [];
+    }
+    render();
+}
+
+async function markLadderStepReached(step) {
+    const token = loadToken();
+    if (!token || step.reached) {
+        return;
+    }
+    try {
+        const response = await fetch(`/api/ladder/${step.id}/reached`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+            step.reached = true;
+        }
+    } catch {
+        // No connection: the step stays as it was; it can be marked on the ladder page later.
+    }
 }
 
 // Someone finished something small: their window glows for a moment.
@@ -264,6 +343,7 @@ $("here-button").addEventListener("click", () => {
     state.step = "groups";
     send("here");
     render();
+    loadLadder();
 });
 
 $("tasks-back").addEventListener("click", () => {
@@ -274,16 +354,21 @@ $("tasks-back").addEventListener("click", () => {
 $("done-button").addEventListener("click", () => {
     state.step = "done";
     send("done");
+    if (state.ladderStep) {
+        markLadderStepReached(state.ladderStep);
+    }
     render();
 });
 
 $("change-task").addEventListener("click", () => {
     state.step = "groups";
+    state.ladderStep = null;
     render();
 });
 
 $("again-button").addEventListener("click", () => {
     state.step = "groups";
+    state.ladderStep = null;
     render();
 });
 
