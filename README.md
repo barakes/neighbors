@@ -27,12 +27,16 @@ On a phone, "Add to home screen" installs it like an app.)*
   for a moment for everyone.
 - The server never learns which task you picked, only that you're doing *something*. A task that isn't marked
   done disappears quietly after 30 minutes: no failure, nothing stored.
+- People with a ladder get a fifth group, **"הסולם שלי"**: their own steps as tasks. Doing one together with the
+  neighbors also marks it on the ladder. The presence channel still hears only "start": the step never leaves the phone that way.
 
 **A ladder out ("סולם החוצה")**
 - A personal ladder of small steps, from inside the room to sitting in a café. Add your own steps, edit,
   reorder or delete them, and mark a step as done.
 - A reached step stays reached: a hard day doesn't take it away.
 - Needs an account only to keep the ladder. Everything you write is encrypted before it's stored.
+- Steps are marked on the ladder only by the person, from the ladder or from its own group: the app doesn't
+  guess that "open a window" was the step "open the shutter". Whether to offer that is a question for the professional review.
 
 **Help, always**
 - "צריך לדבר עם מישהו עכשיו?" on every screen opens a page with real help lines (emergency numbers, ERAN, SAHAR),
@@ -54,6 +58,7 @@ The guiding rule: whatever isn't collected can't leak.
   Tokens expire after 30 days and are cleaned up.
 - **Same answer, same time** for an unknown username and a wrong password, so nobody can find out who has an account.
 - **Attempt limits:** 10 wrong passwords in 15 minutes, or 5 sign-ups an hour, from one address (a sliding window).
+  Once blocked, even the right password waits, so an attacker can't tell which guess was right.
 - **The real client address behind the proxy:** Render serves through Cloudflare, so the server itself sees a
   Cloudflare address, and `X-Forwarded-For` can be faked by the client. I tested this on a live server
   with forged headers (in [PlainLetter](https://github.com/barakes/PlainLetter)): `CF-Connecting-IP` is written by
@@ -63,6 +68,29 @@ The guiding rule: whatever isn't collected can't leak.
 - **Text people write is always shown as text** (`textContent`, never `innerHTML`), so it can't run as code.
 - **The offline copy never includes API answers**, so one person's ladder can't stay on a shared phone.
 - **No third parties:** no analytics, no ads, no external fonts (loading one would tell another company who visits).
+- **Security headers on every answer** (`SecurityHeadersFilter`): a strict **Content-Security-Policy** (scripts and
+  styles only from this site, as files: no inline scripts at all, so injected code wouldn't run even if it got in),
+  `Referrer-Policy: no-referrer` (a help line never learns which app someone came from), `nosniff`,
+  no camera/microphone/location, HTTPS only, and no framing by other sites.
+
+## Keeping presence honest
+
+- **No ghost windows.** A phone that sleeps or loses signal often disappears without closing its connection.
+  The page sends a small `ping` every 25 seconds; a page silent for 90 seconds is let go and its window goes dark
+  for everyone. When the phone wakes, the page reconnects at once and lights its window again (and its task, if it was doing one).
+- **No glow storms.** A window glows at most once a minute, however many times someone presses "done".
+  Picking another task while already busy changes nothing anyone can see, so it sends nothing.
+- **No fake crowds.** At most 10 lit windows and 20 open pages from one address. Not lower on purpose:
+  Israeli mobile networks put many unrelated people behind one IPv4 address (CGNAT), and a limit of 2 or 3
+  would shut out real people who just happen to use the same carrier.
+
+## Reliability
+
+- **The server doesn't sleep in the evening.** The free plan puts it to sleep after 15 minutes without visitors,
+  and waking takes up to a minute: too long for someone opening the app on a hard evening. A scheduled GitHub Action
+  (`wake.yml`) visits it every 10 minutes from 17:00 to 01:00 Israel time, when people are most likely to come.
+  Not around the clock, because the free hours are shared with my other projects.
+- **The help page works offline**, from the copy the service worker keeps on the phone.
 
 ## Accessibility and calm
 
@@ -83,15 +111,17 @@ The guiding rule: whatever isn't collected can't leak.
 | Real-time | Raw WebSocket with a tiny protocol (`here`, `start`, `done`) |
 | Client | Plain HTML, CSS and JavaScript; an installable web app (manifest + service worker) |
 | Tests | JUnit, Mockito, Testcontainers (a real PostgreSQL) |
-| CI/CD | GitHub Actions, Docker (multi-stage, non-root), Render |
+| CI/CD | GitHub Actions (tests on every push, a scheduled wake-up), Docker (multi-stage, non-root), Render |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    P[Phone or browser] <-- WebSocket --> PH[PresenceHandler<br/>in memory only]
-    P -- HTTPS / JSON --> AC[AccountController]
-    P -- HTTPS / JSON --> LC[LadderController]
+    P[Phone or browser] <-- WebSocket --> PH[PresenceHandler<br/>in memory only<br/>pings, limits]
+    PH --> CA[ClientAddress]
+    P -- HTTPS / JSON --> F[SecurityHeadersFilter]
+    F --> AC[AccountController]
+    F --> LC[LadderController]
     AC --> L[AttemptLimiter + ClientAddress]
     AC --> AS[AccountService<br/>BCrypt, hashed tokens]
     LC --> AS
@@ -109,7 +139,7 @@ so the database only ever sees bytes.
 
 | Method | Path | Description |
 |---|---|---|
-| `WS` | `/ws/presence` | Send `here`, `start`, `done`. Receive `presence` (count, busy, lit windows), `you` (your window), `done` (a window to glow). |
+| `WS` | `/ws/presence` | Send `here`, `start`, `done`, and `ping` every 25 s. Receive `presence` (count, busy, lit windows), `you` (your window), `done` (a window to glow), `tooMany` (too many windows from this address). |
 | `POST` | `/api/account/register` | `{"username","password"}` → `201 {"username","token"}`; `400`, `409` name taken, `429` |
 | `POST` | `/api/account/login` | `{"username","password"}` → `{"username","token"}`; `401`, `429` |
 | `GET` | `/api/account/me` | → `{"username"}`; `401` |
@@ -144,21 +174,26 @@ Then `./gradlew bootRun` and open http://localhost:8080. Flyway creates the tabl
 
 ## Tests
 
-`./gradlew test` (Docker must be running): 61 tests.
+`./gradlew test` (Docker must be running): 79 tests, run by GitHub Actions on every push.
 
-- **Presence:** windows, tasks, the 30-minute timeout (with a clock the test moves forward), who hears what.
+- **Presence:** windows, tasks, the 30-minute timeout (with a clock the test moves forward), who hears what,
+  silent pages let go after 90 seconds, pings keeping a page alive, one glow a minute, the per-address limits.
 - **Accounts:** unique names regardless of case, Hebrew names, hashes only, the same answer for unknown names and
   wrong passwords, expired tokens, deleting everything.
 - **Ladder:** the default ladder, editing and reordering, nobody touching someone else's steps, limits, and
   **the raw database bytes don't contain the text**.
 - **Encryption:** round trip, a new IV every time, changed bytes refused, another owner's row refused, another key refused.
-- **Limits:** the sliding window, separate addresses, the client address header.
+- **Limits:** the sliding window, separate addresses, the client address header (for HTTP and for WebSocket).
+- **The HTTP API end to end:** real requests through the controllers and the headers filter, checking the
+  status codes: 401 without a token, 404 for someone else's step, 400 and 409 on sign-up, 429 after too many
+  attempts (and not for another address), and the security headers on API answers.
 
 Database tests run against a real, temporary PostgreSQL in Docker (Testcontainers), never against the production database.
 
 ## Limitations
 
-- Free hosting: the server sleeps when unused and takes up to a minute to wake. Presence also starts over after a restart.
+- Free hosting: outside the evening hours the server may sleep and take up to a minute to wake. Presence also starts over after a restart.
+- Presence lives in one server's memory, which fits one instance. Several instances would need a shared channel (for example Redis pub/sub).
 - The sign-in token is kept in the browser's local storage, which suits an app without user-generated HTML;
   a version with more users would move it to an `HttpOnly` cookie.
 - The help lines and their hours were checked in November 2026 and must be checked again before every release.
