@@ -57,11 +57,7 @@
     <a class="back" href="/">חזרה לבניין</a>
 
 </main>
-<script>
-    // Someone may reach this page first: start keeping the offline copy from here too.
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js");
-    }
-</script>
+<!-- Someone may reach this page first: start keeping the offline copy from here too. -->
+<script src="sw-register.js"></script>
 </body>
 </html>

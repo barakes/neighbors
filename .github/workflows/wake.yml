@@ -1,0 +1,19 @@
+name: Wake the server
+
+# The free server sleeps after 15 minutes without visitors, and waking takes up to a minute.
+# For someone opening the app on a hard evening, a minute of a blank screen is a minute too long.
+# So in the evening and night hours, when people are most likely to come, it's visited every 10 minutes.
+# 15:00-23:00 UTC is 17:00-01:00 in Israel in winter (18:00-02:00 in summer).
+on:
+  schedule:
+    - cron: "*/10 15-22 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Visit the app
+        run: curl --silent --show-error --fail --retry 3 --retry-delay 20 --max-time 90 -o /dev/null https://small-steps-elsi.onrender.com/

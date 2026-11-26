@@ -2,7 +2,7 @@
 // Most important: the help page opens even with no internet at all.
 //
 // Change VERSION whenever any of the files below change, so phones replace their old copy.
-const VERSION = "small-steps-v3";
+const VERSION = "small-steps-v4";
 
 const FILES = [
     "/",
@@ -14,6 +14,7 @@ const FILES = [
     "/ladder.html",
     "/ladder.css",
     "/ladder.js",
+    "/sw-register.js",
     "/manifest.json",
     "/icons/icon-192.png",
     "/icons/icon-512.png",

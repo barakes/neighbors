@@ -68,11 +68,6 @@
 
 </main>
 <script src="app.js"></script>
-<script>
-    // Keep a copy of the app on the phone (see sw.js), so the help page opens even offline.
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js");
-    }
-</script>
+<script src="sw-register.js"></script>
 </body>
 </html>
