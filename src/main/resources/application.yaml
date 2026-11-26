@@ -1,3 +1,7 @@
 spring:
   application:
     name: neighbors
+
+server:
+  # Render tells the server which port to use in PORT. On your computer it's 8080.
+  port: ${PORT:8080}
