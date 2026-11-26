@@ -8,6 +8,8 @@
     --window-dark: #18203A;
     --window-lit: #E9B45A;
     --window-mine: #FFD98F;
+    --card: #1D2742;
+    --card-border: #3A4670;
     --text: #F3EEE3;
     --text-soft: #B7BFD3;
     --button: #F2B84B;
@@ -77,6 +79,17 @@ body {
     transition: background 1.2s ease, box-shadow 1.2s ease;
 }
 
+/* Once the person is inside, the building gets smaller to make room for the choices. */
+.building.compact {
+    width: 220px;
+    padding: 14px 16px 0;
+    gap: 9px;
+}
+
+.building.compact .window {
+    height: 22px;
+}
+
 .window.lit {
     background: var(--window-lit);
     box-shadow: 0 0 10px rgba(233, 180, 90, 0.45);
@@ -91,6 +104,12 @@ body {
     outline-offset: 3px;
 }
 
+/* Someone just finished something small: their window glows for a moment, then fades back. */
+.window.glow {
+    background: var(--window-mine);
+    box-shadow: 0 0 30px rgba(255, 217, 143, 1);
+}
+
 .door {
     grid-column: 2 / span 3;
     height: 44px;
@@ -99,10 +118,65 @@ body {
     border-radius: 6px 6px 0 0;
 }
 
-.actions {
+.building.compact .door {
+    height: 32px;
+}
+
+/* The lower part of the screen: one panel at a time. */
+.panel {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+}
+
+.question {
+    margin: 0;
+    font-size: 16px;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+}
+
+.choice {
+    min-height: 52px;
+    padding: 8px;
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.choice.group {
+    min-height: 76px;
+    border-radius: 18px;
+}
+
+.choice-name {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.choice-hint {
+    font-size: 13px;
+    color: var(--text-soft);
 }
 
 .here-button {
@@ -117,10 +191,47 @@ body {
     cursor: pointer;
 }
 
-.here-button:focus-visible,
-.help:focus-visible {
-    outline: 3px solid var(--text);
-    outline-offset: 3px;
+.here-button.smaller {
+    height: 56px;
+    font-size: 20px;
+}
+
+.secondary-button {
+    align-self: center;
+    height: 48px;
+    padding: 0 24px;
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.back-button {
+    min-height: 44px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--link);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.doing-line {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.done-title {
+    margin: 0;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--link);
 }
 
 .note {
@@ -137,6 +248,15 @@ body {
     min-height: 44px;
     font-size: 15px;
     color: var(--link);
+}
+
+.here-button:focus-visible,
+.secondary-button:focus-visible,
+.back-button:focus-visible,
+.choice:focus-visible,
+.help:focus-visible {
+    outline: 3px solid var(--text);
+    outline-offset: 3px;
 }
 
 [hidden] {
