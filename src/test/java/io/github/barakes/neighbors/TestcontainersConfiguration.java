@@ -11,11 +11,11 @@ import org.testcontainers.utility.DockerImageName;
  * The version is fixed, so every run uses the same one.
  */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
     @Bean
     @ServiceConnection
-    PostgreSQLContainer postgresContainer() {
+    public PostgreSQLContainer postgresContainer() {
         return new PostgreSQLContainer(DockerImageName.parse("postgres:17"));
     }
 }
