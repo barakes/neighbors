@@ -1,0 +1,4 @@
+# Only for tests: added on top of the main application.yaml (Spring reads both, this one wins).
+ladder:
+  # A fixed key for tests only (the bytes 0..31). Never used anywhere else.
+  key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=

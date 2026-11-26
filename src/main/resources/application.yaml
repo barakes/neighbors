@@ -25,3 +25,8 @@ limits:
   # which writes CF-Connecting-IP itself and refuses requests that try to send it (checked on
   # PlainLetter's live server). Without the header (on your computer), the connection's own address is used.
   client-ip-header: CF-Connecting-IP
+
+ladder:
+  # The AES key that encrypts the ladder steps people write. Comes only from the environment variable.
+  # Base64 of 32 random bytes. Losing it makes every saved ladder unreadable, so keep a copy somewhere safe.
+  key: ${LADDER_KEY:}
