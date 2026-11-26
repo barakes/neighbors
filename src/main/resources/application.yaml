@@ -19,3 +19,9 @@ spring:
 server:
   # Render tells the server which port to use in PORT. On your computer it's 8080.
   port: ${PORT:8080}
+
+limits:
+  # Where the real address of whoever sends a request comes from. Render sits behind Cloudflare,
+  # which writes CF-Connecting-IP itself and refuses requests that try to send it (checked on
+  # PlainLetter's live server). Without the header (on your computer), the connection's own address is used.
+  client-ip-header: CF-Connecting-IP
