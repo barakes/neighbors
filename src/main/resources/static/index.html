@@ -1,43 +1,35 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>שכנים</title>
-<!-- Temporary page: only checks that presence works. The real design comes later. -->
-<style>
-  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-         justify-content: center; gap: 12px; background: #0F1524; color: #F3EEE3;
-         font-family: system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
-  h1 { margin: 0; font-size: 28px; font-weight: 600; }
-  p { margin: 0; font-size: 18px; color: #B7BFD3; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F1524">
+  <title>שכנים</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>שכנים</h1>
-  <p id="count">מתחבר...</p>
-<script>
-  const countLine = document.getElementById("count");
+<main class="screen">
 
-  function connect() {
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(protocol + "://" + location.host + "/ws/presence");
+  <header>
+    <h1 class="greeting" id="greeting">טוב שבאת</h1>
+    <p class="count" id="count" aria-live="polite"></p>
+  </header>
 
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === "presence") {
-        countLine.textContent = "עכשיו כאן: " + message.here;
-      }
-    };
+  <div class="street">
+    <!-- The windows are added by app.js. Decorative: the count line says the same in words. -->
+    <div class="building" id="building" aria-hidden="true">
+      <div class="door"></div>
+    </div>
+  </div>
 
-    // If the connection drops (the phone slept, the network changed), try again quietly.
-    socket.onclose = () => {
-      countLine.textContent = "מתחבר מחדש...";
-      setTimeout(connect, 3000);
-    };
-  }
+  <div class="actions">
+    <button type="button" class="here-button" id="here-button">אני כאן</button>
+    <p class="note" id="here-note">אין צורך לדבר עם אף אחד. רק להיות.</p>
+  </div>
 
-  connect();
-</script>
+  <a class="help" href="help.html">צריך לדבר עם מישהו עכשיו?</a>
+
+</main>
+<script src="app.js"></script>
 </body>
 </html>
