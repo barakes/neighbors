@@ -2,6 +2,20 @@ spring:
   application:
     name: neighbors
 
+  # The database. The values come only from environment variables (IntelliJ, Render),
+  # never from this file. Empty defaults let the tests start: they bring their own database.
+  datasource:
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      # Flyway creates the tables; Hibernate only checks that the code matches them.
+      ddl-auto: validate
+    # Database connections are used only inside the code that needs them, not while a page is sent.
+    open-in-view: false
+
 server:
   # Render tells the server which port to use in PORT. On your computer it's 8080.
   port: ${PORT:8080}
